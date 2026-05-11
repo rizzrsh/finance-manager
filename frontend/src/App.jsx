@@ -1,109 +1,114 @@
-import { useState, useEffect } from 'react'
-import Dashboard from './components/Dashboard'
-import TransactionList from './components/TransactionList'
-import BudgetChart from './components/BudgetChart'
-import Alerts from './components/Alerts'
-import Insights from './components/Insights'
-import axios from 'axios'
+import { useState, useEffect } from "react";
+import Dashboard from "./components/Dashboard";
+import Transactions from "./components/Transactions";
+import Insights from "./components/Insights";
+import BudgetChart from "./components/BudgetChart";
+import Alerts from "./components/Alerts";
+import Sidebar from "./components/Sidebar";
 
-const BASE = 'https://finance-manager-grk2.onrender.com/api'
+const API = "http://localhost:5000";
 
 export default function App() {
-  const [tab, setTab] = useState('dashboard')
-  const [transactions, setTransactions] = useState([])
-  const [insights, setInsights] = useState(null)
-  const [prediction, setPrediction] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [income, setIncome] = useState(50000)
-  const [form, setForm] = useState({ description: '', amount: '', date: '' })
-  const [simulating, setSimulating] = useState(false)
+  const [page, setPage] = useState("dashboard");
+  const [transactions, setTransactions] = useState([]);
+  const [insights, setInsights] = useState(null);
+  const [prediction, setPrediction] = useState(null);
+  const [income, setIncome] = useState(50000);
+  const [loading, setLoading] = useState(false);
 
-  const fetchAll = async () => {
-    setLoading(true)
+  const fetchData = async () => {
     try {
       const [txRes, insRes, predRes] = await Promise.all([
-        axios.get(`${BASE}/transactions`),
-        axios.get(`${BASE}/insights?income=${income}`),
-        axios.get(`${BASE}/predict`)
-      ])
-      setTransactions(txRes.data)
-      setInsights(insRes.data)
-      setPrediction(predRes.data)
-    } catch (e) { console.error(e) }
-    setLoading(false)
-  }
+        fetch(`${API}/transactions`),
+        fetch(`${API}/insights`),
+        fetch(`${API}/predict`),
+      ]);
+      if (txRes.ok) setTransactions(await txRes.json());
+      if (insRes.ok) setInsights(await insRes.json());
+      if (predRes.ok) setPrediction(await predRes.json());
+    } catch (e) {
+      console.log("Backend not reachable, using demo data");
+      setTransactions(demoTransactions);
+      setInsights(demoInsights);
+    }
+  };
 
-  useEffect(() => { fetchAll() }, [income])
+  const simulate = async () => {
+    setLoading(true);
+    try {
+      await fetch(`${API}/simulate`, { method: "POST" });
+      await fetchData();
+    } catch {
+      setTransactions(demoTransactions);
+      setInsights(demoInsights);
+    }
+    setLoading(false);
+  };
 
-  const handleAdd = async () => {
-    if (!form.description || !form.amount) return alert('Fill description and amount')
-    await axios.post(`${BASE}/transactions`, { ...form, amount: parseFloat(form.amount) })
-    setForm({ description: '', amount: '', date: '' })
-    fetchAll()
-  }
+  const addTransaction = async (txn) => {
+    try {
+      const res = await fetch(`${API}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(txn),
+      });
+      if (res.ok) await fetchData();
+    } catch {
+      setTransactions((prev) => [{ ...txn, id: Date.now(), category: categorize(txn.description) }, ...prev]);
+    }
+  };
 
-  const handleSimulate = async () => {
-    setSimulating(true)
-    await axios.get(`${BASE}/simulate?months=3&count=20`)
-    await fetchAll()
-    setSimulating(false)
-  }
+  useEffect(() => { fetchData(); }, []);
 
-  const tabs = ['dashboard', 'transactions', 'charts', 'insights', 'alerts']
+  const pages = { dashboard: Dashboard, transactions: Transactions, insights: Insights, charts: BudgetChart, alerts: Alerts };
+  const PageComponent = pages[page] || Dashboard;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '0 2rem' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 28 }}>💹</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)', fontSize: 18, letterSpacing: 1 }}>FinanceAI</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {tabs.map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                padding: '6px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-main)', fontSize: 13, fontWeight: 600,
-                background: tab === t ? 'var(--accent)' : 'transparent',
-                color: tab === t ? '#000' : 'var(--muted)', textTransform: 'capitalize', transition: 'all 0.2s'
-              }}>{t}</button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>Income ₹</span>
-            <input type="number" value={income} onChange={e => setIncome(Number(e.target.value))}
-              style={{ width: 90, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '4px 8px', fontFamily: 'var(--font-mono)', fontSize: 13 }} />
-            <button onClick={handleSimulate} disabled={simulating} style={{
-              padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--accent2)', color: '#fff', fontWeight: 600, fontSize: 13
-            }}>{simulating ? '...' : '🎲 Simulate'}</button>
-          </div>
-        </div>
-      </header>
-
-      <div style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)', padding: '12px 2rem' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <input placeholder="Description (e.g. Swiggy Order)" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-            style={{ flex: 2, minWidth: 180, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 12px', fontFamily: 'var(--font-main)', fontSize: 14 }} />
-          <input type="number" placeholder="Amount ₹" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
-            style={{ flex: 1, minWidth: 100, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: 14 }} />
-          <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}
-            style={{ flex: 1, minWidth: 130, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 8, padding: '8px 12px', fontFamily: 'var(--font-main)', fontSize: 14 }} />
-          <button onClick={handleAdd} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 14 }}>+ Add</button>
-        </div>
+    <div className="layout">
+      <Sidebar page={page} setPage={setPage} income={income} setIncome={setIncome} />
+      <div className="main">
+        <PageComponent
+          transactions={transactions}
+          insights={insights}
+          prediction={prediction}
+          income={income}
+          onAdd={addTransaction}
+          onSimulate={simulate}
+          loading={loading}
+          setPage={setPage}
+        />
       </div>
-
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>Loading data...</div>
-        ) : (
-          <>
-            {tab === 'dashboard' && <Dashboard insights={insights} prediction={prediction} transactions={transactions} />}
-            {tab === 'transactions' && <TransactionList transactions={transactions} />}
-            {tab === 'charts' && <BudgetChart insights={insights} />}
-            {tab === 'insights' && <Insights insights={insights} prediction={prediction} />}
-            {tab === 'alerts' && <Alerts insights={insights} />}
-          </>
-        )}
-      </main>
     </div>
-  )
+  );
 }
+
+function categorize(desc) {
+  const d = desc.toLowerCase();
+  if (/swiggy|zomato|food|restaurant|cafe|hotel/.test(d)) return "Food";
+  if (/uber|ola|metro|bus|petrol|fuel/.test(d)) return "Transport";
+  if (/amazon|flipkart|myntra|shopping|store/.test(d)) return "Shopping";
+  if (/electricity|water|internet|broadband|recharge/.test(d)) return "Utilities";
+  if (/hospital|doctor|pharmacy|med|health/.test(d)) return "Health";
+  return "Other";
+}
+
+const demoTransactions = [
+  { id: 1, description: "Swiggy Order", amount: 380, date: "2025-05-10", category: "Food" },
+  { id: 2, description: "Uber Ride", amount: 145, date: "2025-05-10", category: "Transport" },
+  { id: 3, description: "Amazon Shopping", amount: 1299, date: "2025-05-09", category: "Shopping" },
+  { id: 4, description: "Zomato Lunch", amount: 250, date: "2025-05-09", category: "Food" },
+  { id: 5, description: "Electricity Bill", amount: 1850, date: "2025-05-08", category: "Utilities" },
+  { id: 6, description: "Salary Credit", amount: -50000, date: "2025-05-01", category: "Income" },
+  { id: 7, description: "Netflix Subscription", amount: 649, date: "2025-05-07", category: "Entertainment" },
+  { id: 8, description: "Apollo Pharmacy", amount: 430, date: "2025-05-06", category: "Health" },
+  { id: 9, description: "Petrol Fill", amount: 2000, date: "2025-05-05", category: "Transport" },
+  { id: 10, description: "Flipkart Order", amount: 899, date: "2025-05-04", category: "Shopping" },
+];
+
+const demoInsights = {
+  total_spent: 9902,
+  top_category: "Shopping",
+  category_breakdown: { Food: 630, Transport: 2145, Shopping: 2198, Utilities: 1850, Entertainment: 649, Health: 430 },
+  anomalies: ["Electricity bill ₹1850 is 22% higher than last month"],
+  suggestions: ["You spend ₹630 on Food delivery. Cooking at home 3 days/week saves ~₹200/month.", "Transport costs are high. Consider monthly metro pass to save ₹400/month."],
+};

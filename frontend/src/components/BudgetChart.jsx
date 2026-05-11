@@ -1,39 +1,101 @@
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-const COLORS = ['#00d4aa','#4f8fff','#ffb830','#ff4f6d','#ab47bc','#ff7043','#26c6da','#66bb6a']
-export default function BudgetChart({ insights }) {
-  if (!insights) return null
-  const { category_breakdown, suggested_budget } = insights
-  const pieData = Object.entries(category_breakdown).map(([name, value]) => ({ name, value }))
-  const barData = Object.keys(suggested_budget).map(cat => ({ cat, actual: category_breakdown[cat] || 0, budget: suggested_budget[cat] }))
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+
+const COLORS = ["#7c6bff", "#22d3a5", "#ffb347", "#38bdf8", "#ff5e6d", "#a78bfa"];
+
+export default function BudgetChart({ transactions, income }) {
+  const catMap = {};
+  transactions.filter((t) => t.amount > 0).forEach((t) => {
+    catMap[t.category || "Other"] = (catMap[t.category || "Other"] || 0) + t.amount;
+  });
+  const catData = Object.entries(catMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+  const totalSpent = catData.reduce((s, c) => s + c.value, 0);
+  const remaining = Math.max(0, income - totalSpent);
+
+  const budgetData = [
+    { name: "Spent", value: totalSpent },
+    { name: "Remaining", value: remaining },
+  ];
+
+  // Monthly comparison (demo)
+  const monthlyData = [
+    { month: "Jan", amount: 32000 },
+    { month: "Feb", amount: 28000 },
+    { month: "Mar", amount: 35000 },
+    { month: "Apr", amount: 29000 },
+    { month: "May", amount: totalSpent || 22000 },
+  ];
+
   return (
-    <div>
-      <h2 style={{ fontFamily: 'var(--font-mono)', marginBottom: '1.5rem', color: 'var(--accent)' }}>// Spending Charts</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', padding: '1.5rem' }}>
-          <h3 style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'var(--font-mono)', marginBottom: '1rem' }}>Category Breakdown</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
-                {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={v => `₹${v}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }} />
-            </PieChart>
-          </ResponsiveContainer>
+    <>
+      <div className="topbar">
+        <div className="topbar-title">Charts & Analytics</div>
+      </div>
+      <div className="page">
+        <div className="grid-2">
+          {/* Category Bar Chart */}
+          <div className="card">
+            <div className="card-title">Spending by Category</div>
+            <div className="chart-wrap" style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={catData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: "#5a5a6e", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#5a5a6e", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}`} />
+                  <Tooltip contentStyle={{ background: "#18181f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, color: "#f0eff5" }} formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Amount"]} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {catData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Budget Pie */}
+          <div className="card">
+            <div className="card-title">Budget Overview</div>
+            <div className="chart-wrap" style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={budgetData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value">
+                    <Cell fill="#ff5e6d" />
+                    <Cell fill="#22d3a5" />
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "#18181f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, color: "#f0eff5" }} formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, ""]} />
+                  <Legend wrapperStyle={{ color: "#9898aa", fontSize: 13 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ textAlign: "center", marginTop: 8 }}>
+              <span style={{ color: "var(--text2)", fontSize: 13 }}>
+                ₹{totalSpent.toLocaleString("en-IN")} spent of ₹{income.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
         </div>
-        <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', padding: '1.5rem' }}>
-          <h3 style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'var(--font-mono)', marginBottom: '1rem' }}>Actual vs Budget</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={barData}>
-              <XAxis dataKey="cat" tick={{ fill: 'var(--muted)', fontSize: 10 }} />
-              <YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} />
-              <Tooltip formatter={v => `₹${v}`} contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }} />
-              <Legend />
-              <Bar dataKey="actual" fill="#ff4f6d" name="Actual" radius={[4,4,0,0]} />
-              <Bar dataKey="budget" fill="#00d4aa" name="Budget" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+
+        {/* Monthly Trend */}
+        <div className="card">
+          <div className="card-title">Monthly Spending History</div>
+          <div className="chart-wrap" style={{ height: 240 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#7c6bff" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#7c6bff" stopOpacity={0.6} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: "#5a5a6e", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#5a5a6e", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+                <Tooltip contentStyle={{ background: "#18181f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, color: "#f0eff5" }} formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Spent"]} />
+                <Bar dataKey="amount" fill="url(#barGrad)" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    </>
+  );
 }
