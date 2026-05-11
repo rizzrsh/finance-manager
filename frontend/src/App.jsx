@@ -6,7 +6,7 @@ import BudgetChart from "./components/BudgetChart";
 import Alerts from "./components/Alerts";
 import Sidebar from "./components/Sidebar";
 
-const API = "http://localhost:5000";
+const API = "https://finance-manager-grk2.onrender.com";
 
 export default function App() {
   const [page, setPage] = useState("dashboard");
