@@ -6,7 +6,7 @@ import Alerts from './components/Alerts'
 import Insights from './components/Insights'
 import axios from 'axios'
 
-const BASE = 'http://localhost:5000/api'
+const BASE = 'https://finance-manager-grk2.onrender.com/api'
 
 export default function App() {
   const [tab, setTab] = useState('dashboard')
