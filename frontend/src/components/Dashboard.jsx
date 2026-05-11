@@ -12,6 +12,10 @@ export default function Dashboard({ insights, prediction, transactions }) {
   const pred = prediction?.next_month
   return (
     <div>
+      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <h1 style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontSize: 36, fontWeight: 700, margin: 0 }}>Finance AI</h1>
+        <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4, fontFamily: 'var(--font-main)' }}>by rizzrsh</p>
+      </div>
       <h2 style={{ fontFamily: 'var(--font-mono)', marginBottom: '1.5rem', color: 'var(--accent)' }}>// Overview</h2>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: '2rem' }}>
         <Card label="Monthly Income" value={`₹${monthly_income?.toLocaleString()}`} color="var(--accent)" />
