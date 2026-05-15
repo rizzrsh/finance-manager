@@ -1,194 +1,233 @@
-import { useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
+import useNotificationUpdates from '../lib/useNotificationUpdates';
+import React, { useState, useEffect, useCallback } from 'react';
+import { TrendingUp, ArrowUpRight, ArrowDownRight, Wallet, Send, DollarSign } from 'lucide-react';
+import Charts from './Charts';
+import '../styles/Dashboard.css';
 
-const COLORS = ["#7c6bff", "#22d3a5", "#ffb347", "#38bdf8", "#ff5e6d", "#a78bfa"];
-const CAT_ICONS = { Food: "🍽️", Transport: "🚗", Shopping: "🛍️", Utilities: "⚡", Health: "💊", Entertainment: "🎬", Other: "📦", Income: "💰" };
+// ============================================
+// STAT CARD COMPONENT
+// FIX: moved outside Dashboard to prevent recreation on every render
+// ============================================
+const StatCard = ({ icon: Icon, label, value, change, trend }) => (
+  <div className="stat-card group">
+    <div className="stat-card-blur"></div>
+    <div className="stat-card-content">
+      <div className="stat-header">
+        <div className="stat-icon-wrapper">
+          <Icon className="stat-icon" size={24} />
+        </div>
+        <div className={`stat-badge ${trend}`}>
+          {trend === 'up' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+          {change}%
+        </div>
+      </div>
+      <p className="stat-label">{label}</p>
+      <h3 className="stat-value">
+        $
+        {typeof value === 'number'
+          ? value.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : value}
+      </h3>
+    </div>
+  </div>
+);
 
-export default function Dashboard({ transactions, insights, income, onAdd, onSimulate, loading, setPage }) {
-  const [desc, setDesc] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+const Dashboard = () => {
+  // ============================================
+  // EXISTING STATE
+  // ============================================
+  const [stats, setStats] = useState({
+    totalBalance: 15240.50,
+    monthlyIncome: 8500.00,
+    monthlyExpense: 3240.75,
+    transactions: 127,
+  });
 
-  const debits = transactions.filter((t) => t.amount > 0);
-  const totalSpent = debits.reduce((s, t) => s + t.amount, 0);
-  const balance = income - totalSpent;
-  const savingsRate = income > 0 ? Math.max(0, ((balance / income) * 100)).toFixed(0) : 0;
+  const [loading, setLoading] = useState(true);
 
-  const catData = insights?.category_breakdown
-    ? Object.entries(insights.category_breakdown).map(([name, value]) => ({ name, value }))
-    : [];
+  // ============================================
+  // NEW: NOTIFICATION STATES
+  // ============================================
+  const [transactions, setTransactions] = useState([]);
+  const [notificationStatus, setNotificationStatus] = useState('inactive');
+  const [notificationMessage, setNotificationMessage] = useState('');
+  
+  // Get userId from your auth system (localStorage, context, or Redux)
+  const userId = localStorage.getItem('userId') || 'YOUR_USER_ID';
 
-  // Build spending trend from transactions
-  const trendData = buildTrend(transactions);
+  // ============================================
+  // NOTIFICATION CALLBACK
+  // ============================================
+  const handleNotificationUpdate = useCallback((newData) => {
+    console.log('Dashboard received:', newData);
+    
+    if (newData?.transaction) {
+      // Add to top of transactions list
+      setTransactions(prevTransactions => [newData.transaction, ...prevTransactions]);
+      
+      // Update notification message
+      const merchant = newData.transaction.merchant || 'Unknown Merchant';
+      const amount = newData.transaction.amount || 0;
+      const type = newData.transaction.type === 'income' ? 'Received' : 'Sent';
+      setNotificationMessage(`${type} ₹${amount.toFixed(2)} to/from ${merchant}`);
+      
+      // Show notification banner
+      setNotificationStatus('active');
+      
+      // Auto-hide after 3 seconds
+      setTimeout(() => setNotificationStatus('inactive'), 3000);
 
-  const handleAdd = () => {
-    if (!desc || !amount) return;
-    onAdd({ description: desc, amount: Number(amount), date });
-    setDesc(""); setAmount(""); setDate(new Date().toISOString().split("T")[0]);
-  };
+      // Update transaction count
+      setStats(prevStats => ({
+        ...prevStats,
+        transactions: prevStats.transactions + 1,
+      }));
+    }
+  }, []);
 
+  // ============================================
+  // NOTIFICATION HOOK
+  // ============================================
+  useNotificationUpdates(userId, handleNotificationUpdate);
+
+  // ============================================
+  // EXISTING USEEFFECT FOR LOADING
+  // ============================================
+  useEffect(() => {
+    // Simulate API call
+    const timer = setTimeout(() => setLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
   return (
-    <>
-      <div className="topbar">
-        <div className="topbar-title">Dashboard</div>
-        <div className="topbar-right">
-          <span style={{ fontSize: 13, color: "var(--text2)" }}>
-            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+    <div className="dashboard-container">
+      {/* ============================================
+          NOTIFICATION BANNER (NEW)
+          ============================================ */}
+      {notificationStatus === 'active' && (
+        <div className="notification-banner">
+          <span className="notification-icon">✓</span>
+          <span className="notification-text">
+            New transaction: {notificationMessage}
           </span>
-          <button className="btn btn-primary" onClick={onSimulate} disabled={loading}>
-            {loading ? "⟳ Loading…" : "⚡ Simulate"}
+          <button
+            className="notification-close"
+            onClick={() => setNotificationStatus('inactive')}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* ============================================
+          DASHBOARD HEADER
+          ============================================ */}
+      <div className="dashboard-header">
+        <div>
+          <h1 className="dashboard-title">Financial Dashboard</h1>
+          <p className="dashboard-subtitle">Monitor your wealth in real-time</p>
+        </div>
+        <div className="header-actions">
+          <button className="btn-primary">
+            <Send size={18} />
+            Send Money
           </button>
         </div>
       </div>
 
-      <div className="page">
-        {/* Alerts */}
-        {insights?.anomalies?.length > 0 && (
-          <div className="alert-bar">
-            <span>⚠️</span>
-            <span>{insights.anomalies[0]}</span>
-            <button className="btn btn-ghost" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12 }} onClick={() => setPage("alerts")}>
-              View all
-            </button>
-          </div>
-        )}
-
-        {/* Stat Cards */}
-        <div className="stats-grid">
-          <StatCard icon="💸" label="Total Spent" value={`₹${totalSpent.toLocaleString("en-IN")}`} change={`${debits.length} transactions`} color="var(--red)" />
-          <StatCard icon="💰" label="Balance" value={`₹${Math.abs(balance).toLocaleString("en-IN")}`} change={balance >= 0 ? "On track" : "Over budget"} up={balance >= 0} color="var(--green)" />
-          <StatCard icon="📈" label="Savings Rate" value={`${savingsRate}%`} change={savingsRate > 20 ? "Great job!" : "Try to save more"} up={savingsRate > 20} color="var(--accent)" />
-          <StatCard icon="🏆" label="Top Category" value={insights?.top_category || "—"} change="Highest spending" color="var(--amber)" />
-        </div>
-
-        {/* Add Transaction */}
-        <div className="add-transaction">
-          <input className="input" placeholder="Description (e.g. Swiggy Order)" value={desc} onChange={(e) => setDesc(e.target.value)} />
-          <input className="input" placeholder="Amount ₹" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <button className="btn btn-primary" onClick={handleAdd}>+ Add</button>
-        </div>
-
-        {/* Charts + Recent */}
-        <div className="grid-3">
-          {/* Spending Trend */}
-          <div className="card">
-            <div className="card-title">Spending Trend <span className="card-tag">This Month</span></div>
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#7c6bff" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#7c6bff" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fill: "#5a5a6e", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#5a5a6e", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}`} />
-                  <Tooltip contentStyle={{ background: "#18181f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, color: "#f0eff5" }} formatter={(v) => [`₹${v}`, "Spent"]} />
-                  <Area type="monotone" dataKey="amount" stroke="#7c6bff" strokeWidth={2} fill="url(#spendGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Pie Chart */}
-          <div className="card">
-            <div className="card-title">By Category</div>
-            {catData.length > 0 ? (
-              <div className="chart-wrap">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={catData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
-                      {catData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "#18181f", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, color: "#f0eff5" }} formatter={(v) => [`₹${v}`, ""]} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="empty"><div className="empty-icon">◎</div><div className="empty-title">No data yet</div><p>Click Simulate to load data</p></div>
-            )}
-          </div>
-        </div>
-
-        {/* Category Bars + Recent Transactions */}
-        <div className="grid-2">
-          <div className="card">
-            <div className="card-title">Category Breakdown</div>
-            {catData.length > 0 ? catData.sort((a, b) => b.value - a.value).map((c, i) => {
-              const max = catData[0]?.value || 1;
-              return (
-                <div className="category-row" key={c.name}>
-                  <span className="category-name" style={{ fontSize: 13 }}>{CAT_ICONS[c.name] || "📦"} {c.name}</span>
-                  <div className="category-bar-wrap">
-                    <div className="category-bar" style={{ width: `${(c.value / max) * 100}%`, background: COLORS[i % COLORS.length] }} />
-                  </div>
-                  <span className="category-pct">₹{c.value.toLocaleString("en-IN")}</span>
-                </div>
-              );
-            }) : <div className="empty" style={{ padding: "20px 0" }}><p>No category data</p></div>}
-          </div>
-
-          <div className="card">
-            <div className="card-title">Recent Transactions <span className="card-tag">{debits.length} total</span></div>
-            <div className="txn-list">
-              {transactions.slice(0, 8).map((t) => (
-                <div className="txn-item" key={t.id}>
-                  <div className="txn-icon">{CAT_ICONS[t.category] || "📦"}</div>
-                  <div>
-                    <div className="txn-name">{t.description}</div>
-                    <span className={`badge badge-${(t.category || "other").toLowerCase()}`}>{t.category || "Other"}</span>
-                  </div>
-                  <div className="txn-date">{t.date}</div>
-                  <div className={`txn-amount ${t.amount > 0 ? "debit" : "credit"}`}>
-                    {t.amount > 0 ? "-" : "+"}₹{Math.abs(t.amount).toLocaleString("en-IN")}
-                  </div>
-                </div>
-              ))}
-              {transactions.length === 0 && (
-                <div className="empty"><div className="empty-icon">📭</div><div className="empty-title">No transactions yet</div><p>Add one above or click Simulate</p></div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* AI Insights */}
-        {insights?.suggestions?.length > 0 && (
-          <div className="card">
-            <div className="card-title">✦ AI Insights</div>
-            <div className="insight-list">
-              {insights.suggestions.map((s, i) => (
-                <div className="insight-item" key={i}>
-                  <div className="insight-icon">💡</div>
-                  <div className="insight-text">{s}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* ============================================
+          STATISTICS GRID
+          ============================================ */}
+      <div className="stats-grid">
+        <StatCard
+          icon={Wallet}
+          label="Total Balance"
+          value={stats.totalBalance}
+          change="12.5"
+          trend="up"
+        />
+        <StatCard
+          icon={DollarSign}
+          label="Monthly Income"
+          value={stats.monthlyIncome}
+          change="8.2"
+          trend="up"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Monthly Expense"
+          value={stats.monthlyExpense}
+          change="3.1"
+          trend="down"
+        />
+        <StatCard
+          icon={Send}
+          label="Total Transactions"
+          value={stats.transactions}
+          change="15.3"
+          trend="up"
+        />
       </div>
-    </>
-  );
-}
 
-function StatCard({ icon, label, value, change, up, color }) {
-  return (
-    <div className="stat-card" style={{ "--accent-color": color }}>
-      <div className="stat-icon" style={{ background: `${color}18` }}>{icon}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-      {change && <div className={`stat-change ${up === true ? "up" : up === false ? "down" : ""}`}>{up === true ? "↑" : up === false ? "↓" : ""} {change}</div>}
+      {/* ============================================
+          CHARTS SECTION
+          ============================================ */}
+      <div className="charts-section">
+        <Charts />
+      </div>
+
+      {/* ============================================
+          QUICK ACTIONS
+          ============================================ */}
+      <div className="quick-actions">
+        <h2 className="section-title">Quick Actions</h2>
+        <div className="actions-grid">
+          {[
+            { icon: '💳', label: 'Add Card', color: 'gradient-blue' },
+            { icon: '📊', label: 'View Report', color: 'gradient-purple' },
+            { icon: '⚙️', label: 'Settings', color: 'gradient-cyan' },
+            { icon: '🔔', label: 'Notifications', color: 'gradient-pink' },
+          ].map((action, idx) => (
+            <button key={idx} className={`action-btn ${action.color}`}>
+              <span className="action-icon">{action.icon}</span>
+              <span className="action-label">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ============================================
+          RECENT TRANSACTIONS (from notifications)
+          ============================================ */}
+      {transactions.length > 0 && (
+        <div className="recent-transactions">
+          <h2 className="section-title">Recent Notifications</h2>
+          <div className="transactions-preview">
+            {transactions.slice(0, 3).map((tx) => (
+              <div key={tx._id} className="transaction-preview-item">
+                <div className="tx-icon">
+                  {tx.type === 'income' ? '📥' : '📤'}
+                </div>
+                <div className="tx-details">
+                  <p className="tx-merchant">{tx.merchant}</p>
+                  <p className="tx-category">{tx.category}</p>
+                </div>
+                <div className={`tx-amount ${tx.type}`}>
+                  {tx.type === 'income' ? '+' : '-'}₹{Math.abs(tx.amount).toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
 
-function buildTrend(transactions) {
-  const map = {};
-  transactions.filter((t) => t.amount > 0).forEach((t) => {
-    const d = t.date?.slice(8, 10) || "?";
-    map[d] = (map[d] || 0) + t.amount;
-  });
-  return Object.entries(map).sort((a, b) => a[0] - b[0]).map(([day, amount]) => ({ day, amount }));
-}
+export default Dashboard;

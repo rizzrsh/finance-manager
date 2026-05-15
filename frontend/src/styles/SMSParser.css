@@ -1,0 +1,653 @@
+/* ============================================
+   SMS PARSER CONTAINER
+   ============================================ */
+
+.sms-parser-container {
+  animation: slideUp 0.6s ease-out;
+}
+
+.parser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1.5rem;
+}
+
+.parser-header > div {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-icon {
+  color: var(--accent-cyan);
+}
+
+.parser-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.parser-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.btn-add {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent-cyan), #00a8cc);
+  border: none;
+  border-radius: var(--radius-md);
+  color: #000;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-add:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 217, 255, 0.3);
+}
+
+/* ============================================
+   ADD SMS FORM
+   ============================================ */
+
+.add-sms-form {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(0, 217, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  animation: slideDown 0.3s ease-out;
+}
+
+.form-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.form-textarea {
+  padding: 1rem;
+  background: var(--glass-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  transition: all var(--transition-fast);
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1);
+}
+
+.form-textarea::placeholder {
+  color: var(--text-secondary);
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-primary,
+.btn-secondary {
+  flex: 1;
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-cyan), #00a8cc);
+  color: #000;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 217, 255, 0.3);
+}
+
+.btn-secondary {
+  background: var(--glass-light);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 217, 255, 0.1);
+}
+
+/* ============================================
+   STATISTICS
+   ============================================ */
+
+.sms-statistics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-box {
+  padding: 1.5rem;
+  background: var(--glass-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  text-align: center;
+  transition: all var(--transition-normal);
+}
+
+.stat-box:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 8px 24px rgba(0, 217, 255, 0.1);
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.8rem;
+  font-weight: 600;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+
+/* ============================================
+   SMS LIST
+   ============================================ */
+
+.sms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sms-card {
+  padding: 1.5rem;
+  background: var(--glass-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+  animation: slideUp 0.6s ease-out;
+  overflow: hidden;
+}
+
+.sms-card.status-processed { border-left: 4px solid #00d9ff; }
+.sms-card.status-pending   { border-left: 4px solid #ffbe0b; }
+.sms-card.status-alert     { border-left: 4px solid #ff3333; }
+
+.sms-card:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 12px 40px rgba(0, 217, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.sms-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.sms-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.sender-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #000;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.meta-info { flex: 1; }
+
+.sender-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.3rem;
+  font-size: 0.95rem;
+}
+
+.sms-time {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.sms-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(0, 217, 255, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+
+.status-icon  { font-size: 0.95rem; }
+.status-text  { text-transform: capitalize; }
+
+.sms-content  { margin-bottom: 1rem; }
+
+.sms-message {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ============================================
+   PARSED DATA
+   ============================================ */
+
+.sms-parsed {
+  padding: 1rem;
+  background: rgba(0, 217, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+}
+
+.parsed-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.parsed-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.parsed-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.parsed-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.parsed-value.credit { color: #00d9ff; }
+.parsed-value.debit  { color: #ff006e; }
+.parsed-value.alert  { color: #ffbe0b; }
+
+/* ============================================
+   SMS ACTIONS
+   ============================================ */
+
+.sms-actions {
+  display: flex;
+  gap: 0.8rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.action-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.action-btn:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 217, 255, 0.1);
+  color: var(--accent-cyan);
+}
+
+.action-btn.process {
+  background: rgba(0, 217, 255, 0.2);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.action-btn.process:hover { background: rgba(0, 217, 255, 0.3); }
+
+.action-btn.delete {
+  color: var(--accent-red);
+  border-color: rgba(255, 51, 51, 0.3);
+}
+
+.action-btn.delete:hover {
+  background: rgba(255, 51, 51, 0.1);
+  border-color: var(--accent-red);
+}
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.empty-state svg {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state span {
+  font-size: 0.9rem;
+  display: block;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 768px) {
+  .parser-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-add {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sms-statistics    { grid-template-columns: repeat(2, 1fr); }
+  .parsed-items      { grid-template-columns: repeat(2, 1fr); }
+  .sms-actions       { flex-wrap: wrap; }
+
+  .action-btn {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .parser-title    { font-size: 1.2rem; }
+
+  .sms-card-header { flex-direction: column; }
+
+  .sms-status {
+    width: fit-content;
+    margin-top: 0.5rem;
+  }
+
+  .sms-statistics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .stat-box       { padding: 1rem; }
+  .sms-actions    { flex-direction: column; }
+
+  .action-btn {
+    width: 100%;
+    flex: none;
+  }
+
+  .parsed-items   { grid-template-columns: 1fr; }
+}
+
+/* ============================================
+   NEW ADDITIONS — zero impact on above
+   ============================================ */
+
+.parser-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.btn-refresh-sms {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: var(--glass-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.btn-refresh-sms:hover:not(:disabled) {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+.btn-refresh-sms:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spin-icon { animation: spinAnim 1s linear infinite; }
+
+@keyframes spinAnim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Connection banner */
+.sms-connection-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-left: 4px solid;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+}
+
+.sms-connection-banner.connected {
+  background: rgba(16, 185, 129, 0.08);
+  border-left-color: #10b981;
+  color: var(--text-primary);
+}
+
+.sms-connection-banner.disconnected {
+  background: rgba(255, 51, 51, 0.08);
+  border-left-color: var(--accent-red);
+  color: var(--text-primary);
+}
+
+.sms-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--accent-red);
+  animation: smsPulse 2s infinite;
+}
+
+.sms-status-dot.active { background-color: #10b981; }
+
+@keyframes smsPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.sms-port-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.sms-inline-code {
+  background: rgba(255, 51, 51, 0.12);
+  color: var(--accent-red);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.82rem;
+}
+
+/* Toast notifications */
+.sms-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  animation: slideDown 0.25s ease-out;
+}
+
+.sms-toast-error {
+  background: rgba(255, 51, 51, 0.1);
+  border: 1px solid rgba(255, 51, 51, 0.3);
+  color: var(--accent-red);
+}
+
+.sms-toast-success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.sms-toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0.7;
+  font-family: inherit;
+}
+
+.sms-toast-close:hover { opacity: 1; }
+
+/* Source pill */
+.sms-source-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.sms-source-pill.sms-source-email {
+  background: rgba(131, 56, 236, 0.15);
+  color: var(--accent-purple);
+}
+
+.sms-source-pill.sms-source-sms {
+  background: rgba(0, 217, 255, 0.1);
+  color: var(--accent-cyan);
+}
+
+/* Loading row */
+.sms-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  background: rgba(0, 217, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 480px) {
+  .parser-header-actions { width: 100%; }
+  .btn-add               { flex: 1; }
+
+  .sms-connection-banner {
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+  }
+}
