@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   MessageSquare, Plus, X, CheckCircle, AlertCircle,
-  Clock, Copy, RefreshCw
+  Clock, Copy, RefreshCw,
 } from 'lucide-react';
+
+import { supabase }                        from '../lib/supabaseClient';
+import { getTransactions, getCurrentUser } from '../lib/database';
+import useNotificationUpdates              from '../lib/useNotificationUpdates';
 import '../styles/SMSParser.css';
 
-// ─── CONFIG ────────────────────────────────────────────────────────────────────
-const API_BASE = 'http://localhost:5000/api';
-
-// ─── DEMO DATA (shown when backend is offline) ─────────────────────────────────
+// ─── DEMO DATA (shown when no real transactions exist) ─────────────────────────
 const DEMO_SMS = [
   {
     id: 1,
@@ -69,10 +70,38 @@ const formatDbTransaction = (tx, idx) => ({
 /** Detect debit / credit / alert from raw SMS text */
 const detectType = (text) => {
   const t = text.toLowerCase();
-  if (['debited', 'debit', 'charged', 'paid'].some(k => t.includes(k))) return 'debit';
+  if (['debited', 'debit', 'charged', 'paid'].some(k => t.includes(k)))   return 'debit';
   if (['credited', 'credit', 'received', 'refund'].some(k => t.includes(k))) return 'credit';
-  if (['alert', 'low balance', 'otp'].some(k => t.includes(k)))              return 'alert';
+  if (['alert', 'low balance', 'otp'].some(k => t.includes(k)))             return 'alert';
   return 'debit';
+};
+
+/** Client-side SMS parser using the Anthropic API (same pattern as Insights) */
+const callAnthropicSmsParser = async (message) => {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: `Parse this banking SMS and return ONLY a JSON object with these fields:
+{ "merchant": string, "amount": number, "date": string (YYYY-MM-DD), "category": string }
+
+Categories: Groceries, Food, Entertainment, Transport, Utilities, Health, Shopping, Income, Alert, Other.
+If a field is unknown, use null.
+
+SMS: "${message}"`,
+        },
+      ],
+    }),
+  });
+  const data = await response.json();
+  const text = data.content?.map(c => c.text || '').join('') || '{}';
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
 };
 
 // ─── COMPONENT ─────────────────────────────────────────────────────────────────
@@ -82,77 +111,135 @@ const SMSParser = () => {
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [selectedSms,  setSelectedSms]  = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [userId,       setUserId]       = useState(null);
 
-  // connection / async states
-  const [isConnected,  setIsConnected]  = useState(false);
-  const [isLoading,    setIsLoading]    = useState(false);
-  const [errorMsg,     setErrorMsg]     = useState('');
-  const [successMsg,   setSuccessMsg]   = useState('');
+  // shared async states (mirrors Dashboard pattern)
+  const [isLoading,  setIsLoading]  = useState(true);
+  const [errorMsg,   setErrorMsg]   = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  // ── 1. CHECK BACKEND via /api/health ─────────────────────────────────────
-  const checkConnection = useCallback(async () => {
-    try {
-      const res  = await fetch(`${API_BASE}/health`);
-      const data = await res.json();
-      setIsConnected(data.status === 'ok');
-    } catch {
-      setIsConnected(false);
-    }
-  }, []);
-
-  // ── 2. LOAD TRANSACTIONS FROM SUPABASE via /api/transactions ─────────────
+  // ── 1. LOAD TRANSACTIONS FROM SUPABASE (via shared db helper) ─────────────
   const loadTransactions = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const res  = await fetch(`${API_BASE}/transactions`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        setSmsList(data.map(formatDbTransaction));
+      // Get current user — same pattern as Dashboard
+      const user = await getCurrentUser();
+      if (!user) {
+        console.warn('No user logged in');
+        setIsLoading(false);
+        return;
       }
-    } catch {
-      setErrorMsg('Could not load transactions. Is the backend running?');
+      setUserId(user.id);
+
+      const fetched = await getTransactions();
+      if (fetched && fetched.length > 0) {
+        setSmsList(fetched.map(formatDbTransaction));
+      }
+      // else keep DEMO_SMS as fallback
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      setErrorMsg('Could not load transactions. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    checkConnection();
     loadTransactions();
-  }, [checkConnection, loadTransactions]);
+  }, [loadTransactions]);
 
-  // ── 3. CALL /api/sms-parse ────────────────────────────────────────────────
-  const callSmsParseApi = async (message) => {
-    const res = await fetch(`${API_BASE}/sms-parse`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ sms: message }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return data; // { merchant, amount, date, category, description }
+  // ── 2. REAL-TIME UPDATES (same hook as Dashboard) ─────────────────────────
+  const handleNotificationUpdate = useCallback((newData) => {
+    if (!newData?.transaction) return;
+    const tx = newData.transaction;
+    setSmsList(prev => [
+      {
+        id:        `rt-${tx.id || Date.now()}`,
+        message:   `${tx.description || tx.merchant} — ₹${Math.abs(tx.amount)}`,
+        sender:    tx.merchant || tx.description || 'Unknown',
+        timestamp: new Date().toLocaleString(),
+        parsed: {
+          amount:   Math.abs(tx.amount),
+          type:     tx.amount > 0 ? 'credit' : 'debit',
+          category: tx.category || 'Other',
+          merchant: tx.merchant || tx.description || 'Unknown',
+        },
+        status: 'processed',
+        source: 'sms',
+      },
+      ...prev,
+    ]);
+    showSuccess(`New transaction received: ₹${Math.abs(tx.amount)} — ${tx.merchant || tx.description}`);
+  }, []);
+
+  useNotificationUpdates(userId, handleNotificationUpdate);
+
+  // ── 3. PARSE SMS via Anthropic API ────────────────────────────────────────
+  const processSms = async (id, messageOverride) => {
+    const message = messageOverride || smsList.find(s => s.id === id)?.message;
+    if (!message) return;
+
+    setProcessingId(id);
+    setErrorMsg('');
+
+    try {
+      const apiResult = await callAnthropicSmsParser(message);
+
+      const parsed = {
+        amount:   apiResult.amount   || 0,
+        merchant: apiResult.merchant || 'Unknown',
+        category: apiResult.category || 'Other',
+        date:     apiResult.date     || new Date().toISOString().split('T')[0],
+        type:     detectType(message),
+      };
+
+      setSmsList(prev =>
+        prev.map(s =>
+          s.id === id
+            ? { ...s, parsed, status: parsed.type === 'alert' ? 'alert' : 'processed' }
+            : s
+        )
+      );
+
+      // Save to Supabase directly — mirrors Dashboard's Supabase usage
+      if (parsed.amount) {
+        const { error } = await supabase.from('transactions').insert([{
+          description: parsed.merchant,
+          amount:      parsed.type === 'debit' ? -Math.abs(parsed.amount) : Math.abs(parsed.amount),
+          date:        parsed.date,
+          category:    parsed.category,
+          source:      'sms',
+        }]);
+        if (error) throw error;
+        showSuccess('✓ SMS parsed and saved!');
+      }
+
+    } catch (err) {
+      console.error('SMS parse error:', err);
+      // Graceful fallback — don't leave card stuck in "pending"
+      setSmsList(prev =>
+        prev.map(s =>
+          s.id === id
+            ? {
+                ...s,
+                parsed: { amount: 0, type: detectType(message), category: 'Other', merchant: 'Unknown' },
+                status: 'processed',
+              }
+            : s
+        )
+      );
+      setErrorMsg(`Could not parse SMS: ${err.message}`);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
-  // ── 4. SAVE PARSED TRANSACTION via /api/transactions POST ─────────────────
-  const saveTransaction = async (parsed) => {
-    await fetch(`${API_BASE}/transactions`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        description: parsed.merchant || 'Unknown',
-        amount:      parsed.amount,
-        date:        parsed.date,
-        source:      'sms',
-      }),
-    });
-  };
-
-  // ── 5. ADD NEW SMS ────────────────────────────────────────────────────────
+  // ── 4. ADD NEW SMS ────────────────────────────────────────────────────────
   const handleAddSms = async () => {
     if (!newMessage.trim()) return;
 
-    const newId  = Date.now();
+    const newId = Date.now();
     const newSms = {
       id:        newId,
       message:   newMessage,
@@ -167,59 +254,8 @@ const SMSParser = () => {
     setNewMessage('');
     setShowAddForm(false);
 
-    // Auto-process immediately if backend is up
-    if (isConnected) {
-      await processSms(newId, newMessage);
-    }
-  };
-
-  // ── 6. PROCESS A PENDING SMS ──────────────────────────────────────────────
-  const processSms = async (id, messageOverride) => {
-    // Capture message before any async gap
-    const message = messageOverride
-      || smsList.find(s => s.id === id)?.message;
-    if (!message) return;
-
-    setProcessingId(id);
-    setErrorMsg('');
-
-    try {
-      const apiResult = await callSmsParseApi(message);
-
-      const parsed = {
-        amount:   apiResult.amount,
-        merchant: apiResult.merchant,
-        category: apiResult.category,
-        date:     apiResult.date,
-        type:     detectType(message),
-      };
-
-      setSmsList(prev => prev.map(s =>
-        s.id === id
-          ? { ...s, parsed, status: parsed.type === 'alert' ? 'alert' : 'processed' }
-          : s
-      ));
-
-      if (parsed.amount) {
-        await saveTransaction(parsed);
-        showSuccess('✓ SMS parsed and saved to Supabase!');
-      }
-
-    } catch (err) {
-      // Fallback: mark processed with unknown data so UI doesn't stay "pending"
-      setSmsList(prev => prev.map(s =>
-        s.id === id
-          ? {
-              ...s,
-              parsed: { amount: 0, type: detectType(message), category: 'Other', merchant: 'Unknown' },
-              status: 'processed',
-            }
-          : s
-      ));
-      setErrorMsg(`Could not parse: ${err.message}`);
-    } finally {
-      setProcessingId(null);
-    }
+    // Auto-process immediately
+    await processSms(newId, newMessage);
   };
 
   // ── HELPERS ───────────────────────────────────────────────────────────────
@@ -228,7 +264,7 @@ const SMSParser = () => {
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
-  const deleteSms    = (id)  => setSmsList(prev => prev.filter(s => s.id !== id));
+  const deleteSms       = (id)  => setSmsList(prev => prev.filter(s => s.id !== id));
   const copyToClipboard = (text) => navigator.clipboard.writeText(text);
 
   const getStatusIcon = (status) => {
@@ -274,20 +310,13 @@ const SMSParser = () => {
         </div>
       </div>
 
-      {/* ── CONNECTION STATUS BANNER ── */}
-      <div className={`sms-connection-banner ${isConnected ? 'connected' : 'disconnected'}`}>
-        <span className={`sms-status-dot ${isConnected ? 'active' : ''}`} />
-        {isConnected
-          ? <span>✓ Backend connected — real parsing active <span className="sms-port-label">(localhost:5000)</span></span>
-          : <span>Backend offline — showing demo data. Run: <code className="sms-inline-code">python app.py</code></span>
-        }
-      </div>
-
       {/* ── ERROR / SUCCESS TOASTS ── */}
       {errorMsg && (
         <div className="sms-toast sms-toast-error">
           <span>{errorMsg}</span>
-          <button className="sms-toast-close" onClick={() => setErrorMsg('')}><X size={14} /></button>
+          <button className="sms-toast-close" onClick={() => setErrorMsg('')}>
+            <X size={14} />
+          </button>
         </div>
       )}
       {successMsg && (
@@ -310,7 +339,7 @@ const SMSParser = () => {
             />
             <div className="form-actions">
               <button className="btn-primary" onClick={handleAddSms}>
-                {isConnected ? 'Parse & Save' : 'Add Message'}
+                Parse &amp; Save
               </button>
               <button
                 className="btn-secondary"

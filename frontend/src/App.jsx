@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   NavLink,
+  Navigate,
 } from 'react-router-dom';
 
 import {
@@ -22,6 +23,10 @@ import {
   Search,
 } from 'lucide-react';
 
+import Auth from './pages/Auth';
+import ProtectedRoute from './components/ProtectedRoute';
+import UserProfile from './components/UserProfile';
+import { supabase } from './lib/supabaseClient';
 import Dashboard from './components/Dashboard';
 import Charts from './components/Charts';
 import Transactions from './components/Transactions';
@@ -32,12 +37,29 @@ import MerchantMap from './components/MerchantMap';
 import { initializeAPI } from './lib/api.config';
 import './styles/App.css';
 
+// ── Redirects already-logged-in users away from /auth ────────────────────────
+function PublicRoute({ children }) {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => setSession(session)
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return null;       // still loading
+  if (session) return <Navigate to="/" replace />; // already logged in
+  return children;                              // not logged in → show Auth
+}
+
 export default function App() {
   const [apiReady, setApiReady] = useState(false);
   const [apiError, setApiError] = useState(null);
 
   useEffect(() => {
-    // Initialize API connection on app load
     const init = async () => {
       try {
         const isReady = await initializeAPI();
@@ -63,11 +85,12 @@ export default function App() {
 
 function AppContent({ apiReady, apiError }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
-  // FIX 1: Only apply 'light-mode' class when needed.
-  // The :root CSS already defines dark theme by default,
-  // so adding 'dark-mode' class does nothing and breaks rendering.
   const [darkMode, setDarkMode] = useState(true);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/auth';
+  };
 
   const navigation = [
     {
@@ -115,8 +138,6 @@ function AppContent({ apiReady, apiError }) {
   ];
 
   return (
-    // FIX 1: was `${darkMode ? 'dark-mode' : 'light-mode'}` — 'dark-mode' has no CSS
-    // Now: only apply 'light-mode' when toggled; dark is the default :root theme
     <div className={`app-container ${!darkMode ? 'light-mode' : ''}`}>
 
       {/* ============================================
@@ -125,7 +146,7 @@ function AppContent({ apiReady, apiError }) {
       {apiError && (
         <div className="api-error-banner">
           <span>⚠️ {apiError}</span>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="banner-action"
           >
@@ -148,16 +169,13 @@ function AppContent({ apiReady, apiError }) {
         {/* Sidebar Header */}
         <div className="sidebar-header">
           <div className="app-logo">
-            {/* FIX 2: 'logo-icon' is correct in CSS */}
             <span className="logo-icon">💰</span>
             <div>
               <h2 className="logo-text">FinanceFlow</h2>
-              {/* FIX 3: Added 'logo-subtitle' style in App.css below */}
               <p className="logo-subtitle">Smart Finance AI</p>
             </div>
           </div>
 
-          {/* FIX 4: was 'mobile-close-btn' — CSS has 'sidebar-toggle-mobile' */}
           <button
             className="sidebar-toggle-mobile"
             onClick={() => setSidebarOpen(false)}
@@ -182,9 +200,7 @@ function AppContent({ apiReady, apiError }) {
                 }}
               >
                 <Icon size={20} className="nav-icon" />
-                {/* FIX 5: Added 'nav-label' span — CSS targets this for text */}
                 <span className="nav-label">{item.label}</span>
-                {/* FIX 6: was 'active-indicator' — CSS has 'nav-indicator' */}
                 <div className="nav-indicator"></div>
               </NavLink>
             );
@@ -193,17 +209,9 @@ function AppContent({ apiReady, apiError }) {
 
         {/* Sidebar Footer */}
         <div className="sidebar-footer">
-          <div className="user-profile">
-            <div className="user-avatar">JD</div>
-            {/* FIX 7: was 'user-details' — CSS has 'user-info' */}
-            <div className="user-info">
-              {/* FIX 8: was plain <h4> — CSS has 'user-name' and 'user-email' */}
-              <p className="user-name">John Doe</p>
-              <p className="user-email">john@example.com</p>
-            </div>
-          </div>
+          <UserProfile />
 
-          <button className="logout-btn">
+          <button className="logout-btn" onClick={handleLogout}>
             <LogOut size={18} />
             Logout
           </button>
@@ -218,7 +226,6 @@ function AppContent({ apiReady, apiError }) {
         {/* Top Header */}
         <header className="top-header">
           <div className="header-left">
-            {/* Sidebar toggle (hamburger) */}
             <button
               className="sidebar-toggle"
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -226,14 +233,12 @@ function AppContent({ apiReady, apiError }) {
               <Menu size={22} />
             </button>
 
-            {/* FIX 9: was 'page-title' — CSS uses 'breadcrumb' pattern */}
             <div className="breadcrumb">
               <span className="breadcrumb-current">Finance Manager</span>
             </div>
           </div>
 
           <div className="header-right">
-            {/* Search */}
             <div className="search-bar">
               <Search size={18} />
               <input
@@ -244,7 +249,6 @@ function AppContent({ apiReady, apiError }) {
 
             <div className="header-divider"></div>
 
-            {/* Theme Toggle */}
             <button
               className="theme-toggle"
               onClick={() => setDarkMode(!darkMode)}
@@ -253,8 +257,6 @@ function AppContent({ apiReady, apiError }) {
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* Notifications */}
-            {/* FIX 10: was standalone button — CSS wraps in 'notifications' div */}
             <div className="notifications">
               <button className="notification-btn">
                 <Bell size={18} />
@@ -264,8 +266,6 @@ function AppContent({ apiReady, apiError }) {
 
             <div className="header-divider"></div>
 
-            {/* Profile */}
-            {/* FIX 11: was 'profile-mini'/'mini-avatar' — CSS uses 'user-menu'/'avatar-small' */}
             <div className="user-menu">
               <button className="user-menu-trigger">
                 <div className="avatar-small">JD</div>
@@ -278,13 +278,33 @@ function AppContent({ apiReady, apiError }) {
         {/* Page Routes */}
         <section className="page-content">
           <Routes>
-            {navigation.map((item) => (
-              <Route
-                key={item.id}
-                path={item.path}
-                element={item.element}
-              />
-            ))}
+            {/* Auth Route - Public (redirects away if already logged in) */}
+            <Route
+              path="/auth"
+              element={
+                <PublicRoute>
+                  <Auth />
+                </PublicRoute>
+              }
+            />
+
+            {/* Protected Routes */}
+            <Route
+              path="*"
+              element={
+                <ProtectedRoute>
+                  <Routes>
+                    {navigation.map((item) => (
+                      <Route
+                        key={item.id}
+                        path={item.path}
+                        element={item.element}
+                      />
+                    ))}
+                  </Routes>
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </section>
 

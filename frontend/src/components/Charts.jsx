@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -17,13 +17,18 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { TrendingUp, Calendar } from 'lucide-react';
+import { getTransactions } from '../lib/database';
 import '../styles/Charts.css';
 
 const Charts = () => {
   const [chartType, setChartType] = useState('line');
   const [period, setPeriod] = useState('6m');
+  const [lineData, setLineData] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const lineData = [
+  // Demo data (fallback when no real data exists)
+  const demoLineData = [
     { month: 'Jan', income: 4000, expense: 2400, profit: 1600 },
     { month: 'Feb', income: 5200, expense: 2800, profit: 2400 },
     { month: 'Mar', income: 4800, expense: 2200, profit: 2600 },
@@ -32,13 +37,101 @@ const Charts = () => {
     { month: 'Jun', income: 8500, expense: 3240, profit: 5260 },
   ];
 
-  const categoryData = [
+  const demoCategoryData = [
     { name: 'Groceries', value: 1200, percentage: 28 },
     { name: 'Entertainment', value: 800, percentage: 18 },
     { name: 'Transport', value: 640, percentage: 15 },
     { name: 'Utilities', value: 520, percentage: 12 },
     { name: 'Others', value: 1080, percentage: 27 },
   ];
+
+  // Fetch and process transaction data
+  useEffect(() => {
+    const fetchAndProcessData = async () => {
+      try {
+        const transactions = await getTransactions();
+
+        if (transactions && transactions.length > 0) {
+          // Process transactions into chart data
+          const processedLineData = processTransactionsForLineChart(transactions, period);
+          const processedCategoryData = processTransactionsForPieChart(transactions);
+
+          setLineData(processedLineData.length > 0 ? processedLineData : demoLineData);
+          setCategoryData(processedCategoryData.length > 0 ? processedCategoryData : demoCategoryData);
+        } else {
+          // No transactions - use demo data
+          setLineData(demoLineData);
+          setCategoryData(demoCategoryData);
+        }
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+        // Use demo data on error
+        setLineData(demoLineData);
+        setCategoryData(demoCategoryData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAndProcessData();
+  }, [period]);
+
+  // Process transactions into line chart format (monthly aggregation)
+  const processTransactionsForLineChart = (transactions, selectedPeriod) => {
+    if (!transactions || transactions.length === 0) return [];
+
+    const monthMap = {};
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    transactions.forEach((trans) => {
+      const date = new Date(trans.date || trans.created_at);
+      const monthIndex = date.getMonth();
+      const monthKey = monthNames[monthIndex];
+
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { month: monthKey, income: 0, expense: 0, profit: 0 };
+      }
+
+      const amount = parseFloat(trans.amount) || 0;
+      // Assume positive = income, negative = expense
+      if (amount > 0) {
+        monthMap[monthKey].income += amount;
+      } else {
+        monthMap[monthKey].expense += Math.abs(amount);
+      }
+
+      monthMap[monthKey].profit = monthMap[monthKey].income - monthMap[monthKey].expense;
+    });
+
+    return Object.values(monthMap).slice(-6); // Last 6 months
+  };
+
+  // Process transactions into pie chart format (category aggregation)
+  const processTransactionsForPieChart = (transactions) => {
+    if (!transactions || transactions.length === 0) return [];
+
+    const categoryMap = {};
+    let totalAmount = 0;
+
+    transactions.forEach((trans) => {
+      const category = trans.category || 'Others';
+      const amount = Math.abs(parseFloat(trans.amount) || 0);
+
+      if (!categoryMap[category]) {
+        categoryMap[category] = 0;
+      }
+      categoryMap[category] += amount;
+      totalAmount += amount;
+    });
+
+    if (totalAmount === 0) return [];
+
+    return Object.entries(categoryMap).map(([name, value]) => ({
+      name,
+      value: Math.round(value),
+      percentage: Math.round((value / totalAmount) * 100),
+    }));
+  };
 
   const COLORS = ['#00D9FF', '#FF006E', '#8338EC', '#FFBE0B', '#FB5607'];
 
@@ -66,7 +159,9 @@ const Charts = () => {
             <TrendingUp className="title-icon" />
             Financial Analytics
           </h2>
-          <p className="charts-subtitle">Track your income and expenses over time</p>
+          <p className="charts-subtitle">
+            {loading ? 'Loading analytics...' : 'Track your income and expenses over time'}
+          </p>
         </div>
         <div className="charts-controls">
           <div className="control-group">
@@ -178,7 +273,7 @@ const Charts = () => {
         )}
       </div>
 
-      {chartType === 'pie' && (
+      {chartType === 'pie' && categoryData.length > 0 && (
         <div className="category-breakdown">
           <h3 className="breakdown-title">Expense Categories</h3>
           <div className="category-list">
