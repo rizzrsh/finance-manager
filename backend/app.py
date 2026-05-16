@@ -83,11 +83,11 @@ def detect_anomalies(df):
 
 # ─── ROUTES ────────────────────────────────────────────────────────────────────
 
-# ── NEW: health check used by SMSParser connection status banner ───────────────
+# ── Health check — used by SMSParser connection status banner ─────────────────
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 @app.route('/api/transactions', methods=['GET'])
@@ -111,7 +111,7 @@ def api_insights():
     income = float(request.args.get('income', 50000))
     user_id = request.args.get('user_id')
     transactions = load_transactions(user_id)
-    
+
     if not transactions:
         return jsonify({
             'total_spent': 0,
@@ -123,20 +123,20 @@ def api_insights():
             'savings_rate': 100,
             'monthly_income': income
         })
-    
+
     df = pd.DataFrame(transactions)
     debits = df[df['amount'] > 0]
     total_spent = float(debits['amount'].sum()) if len(debits) > 0 else 0
-    
+
     category_breakdown = {}
     if 'category' in debits.columns and len(debits) > 0:
         category_breakdown = debits.groupby('category')['amount'].sum().to_dict()
         category_breakdown = {k: float(v) for k, v in category_breakdown.items()}
-    
+
     top_category = max(category_breakdown, key=category_breakdown.get) if category_breakdown else 'N/A'
     suggestions = generate_suggestions(category_breakdown, total_spent)
     alerts = detect_anomalies(debits)
-    
+
     return jsonify({
         'total_spent': total_spent,
         'top_category': top_category,
@@ -153,14 +153,14 @@ def api_insights():
 def api_predict():
     user_id = request.args.get('user_id')
     transactions = load_transactions(user_id)
-    
+
     if not transactions:
         return jsonify({'predicted_next_month': 0, 'next_month': 0})
-    
+
     df = pd.DataFrame(transactions)
     debits = df[df['amount'] > 0]
     avg = float(debits['amount'].mean()) * 30 if len(debits) > 0 else 0
-    
+
     return jsonify({
         'predicted_next_month': round(avg),
         'next_month': round(avg),
@@ -168,7 +168,7 @@ def api_predict():
     })
 
 
-@app.route('/api/simulate', methods=['GET', 'POST'])
+@app.route('/api/simulate', methods=['POST'])
 def api_simulate():
     """Simulate sample UPI transactions"""
     data = request.json or {}
@@ -190,7 +190,6 @@ def api_simulate():
     inserted = []
     for t in demo:
         t['created_at'] = datetime.now().isoformat()
-        # Only add user_id if explicitly provided
         if user_id:
             t['user_id'] = user_id
         result = save_transaction(t)
@@ -204,7 +203,7 @@ def api_simulate():
 def api_merchants():
     user_id = request.args.get('user_id')
     transactions = load_transactions(user_id)
-    
+
     merchant_map = {}
     for t in transactions:
         if float(t.get('amount', 0)) <= 0:
@@ -214,7 +213,7 @@ def api_merchants():
             merchant_map[name] = {'merchant': name, 'count': 0, 'total': 0, 'category': t.get('category', 'Other')}
         merchant_map[name]['count'] += 1
         merchant_map[name]['total'] += float(t.get('amount', 0))
-    
+
     result = sorted(merchant_map.values(), key=lambda x: x['count'], reverse=True)
     return jsonify(result)
 
@@ -224,14 +223,15 @@ def parse_sms():
     data = request.json
     sms = data.get('sms', '')
     amount = None
-    amt_match = re.search(r'(?:Rs\.?|INR)\s*(\d+(?:\.\d{2})?)', sms, re.IGNORECASE)
+    amt_match = re.search(r'(?:Rs\.?|INR)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)', sms, re.IGNORECASE)
     if amt_match:
-        amount = float(amt_match.group(1))
+        amount = float(amt_match.group(1).replace(',', ''))
     merchant = 'Unknown'
     merchant_patterns = [
         r'to\s+([A-Za-z][A-Za-z\s]+?)(?:\s+on|\s+via|\s+ref|\.|$)',
         r'paid to\s+([A-Za-z][A-Za-z\s]+?)(?:\s+via|\s+on|\.|$)',
         r'debited to\s+([A-Za-z][A-Za-z\s]+?)(?:\s+via|\s+on|\.|$)',
+        r'at\s+([A-Za-z][A-Za-z0-9\s]+?)(?:\s+on|\s+via|\.|$)',
     ]
     for pattern in merchant_patterns:
         m = re.search(pattern, sms, re.IGNORECASE)
@@ -247,7 +247,7 @@ def parse_sms():
             if len(parts[2]) == 2:
                 parts[2] = '20' + parts[2]
             date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-        except:
+        except Exception:
             pass
     category = categorize(merchant)
     if not amount:
@@ -271,9 +271,9 @@ def sms_webhook():
     if not any(k in sms_text.lower() for k in keywords):
         return jsonify({'status': 'ignored', 'reason': 'not a transaction SMS'}), 200
     amount = None
-    amt_match = re.search(r'(?:Rs\.?|INR)\s*(\d+(?:\.\d{2})?)', sms_text, re.IGNORECASE)
+    amt_match = re.search(r'(?:Rs\.?|INR)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)', sms_text, re.IGNORECASE)
     if amt_match:
-        amount = float(amt_match.group(1))
+        amount = float(amt_match.group(1).replace(',', ''))
     merchant = 'Unknown'
     patterns = [
         r'(?:to|at)\s+([A-Za-z][A-Za-z0-9\s&]+?)(?:\s+on|\s+via|\s+ref|\.|,|$)',
